@@ -6,7 +6,7 @@ UltraSonicDistanceSensor distanceSensor(A0, A1);  // Initialize sensor that uses
 ///////////////////////Inputs/outputs///////////////////////
 Servo myservo;  // create servo object to control a servo, later attatched to D9
 ///////////////////////////////////////////////////////
-
+//
 ////////////////////////Variables///////////////////////
 int Read = 0;
 float distance = 0.0;
