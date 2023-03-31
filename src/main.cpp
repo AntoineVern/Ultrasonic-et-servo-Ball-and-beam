@@ -10,6 +10,7 @@
 #define MS1_PIN 13
 #define MS2_PIN 12
 #define MS3_PIN 27
+#define set_point 20
 
 #define MAX 45
 #define MIN -45
@@ -22,30 +23,37 @@ double angle_P, angle_I, angle_D, angle_PI, angle_PID, angle_now;
 UltraSonicDistanceSensor distanceSensor(A0, A1); // Initialize sensor that uses digital pins 13 and 12.
 
 double distance = 0.0;
-double temps; // Variables for time control
+double temps, tempsPrint; // Variables for time control
 double distance_previous_error, distance_error;
 int period = 50; // Refresh rate period of the loop is 50ms
 
 ///////////////////PID constants///////////////////////
 #define KP_MAX 10
-#define KI_MAX 1
-#define KD_MAX 10000
+#define KI_MAX 2
+#define KD_MAX 2000
 
-double kp = 2;                 // Mine was 8
+float target;
+float target_now;
+
+double kp = 4;                 // Mine was 8
 double ki = 0.2;               // Mine was 0.2
-double kd = 3100;              // Mine was 3100
-double distance_setpoint = 20; // Should be the distance from sensor to the middle of the bar in mm
+double kd = 2000;              // Mine was 3100
+double distance_setpoint = 25; // Should be the distance from sensor to the middle of the bar in mm
 ///////////////////////////////////////////////////////
+
+float current_angle = 0;
 
 double limit(void);
 float measureDistance();
 void Kpot(void);
+float position(float distance);
 
 void setup()
 {
   Serial.begin(115200);
-  stepper.begin(60, 1); // vitesse est de 1.8°/s
+  stepper.begin(60, 2); // vitesse est de 1.8°/s
   temps = millis();
+  tempsPrint = millis();
   angle_now = 0;
 }
 
@@ -57,6 +65,7 @@ void loop()
     temps = millis();
     Kpot();
     distance = measureDistance();
+
     distance_error = distance_setpoint - distance;
 
     angle_P = kp * distance_error;
@@ -64,7 +73,7 @@ void loop()
     float dist_diference = distance_error - distance_previous_error;
     angle_D = kd * ((distance_error - distance_previous_error) / period);
 
-    if (-3 < distance_error && distance_error < 3)
+    if (-5 < distance_error && distance_error < 8)
     {
       angle_I = angle_I + (ki * distance_error);
     }
@@ -72,25 +81,28 @@ void loop()
     {
       angle_I = 0;
     }
+    //angle_I = angle_I + (ki * distance_error);
     angle_PI = angle_P + angle_I;
     angle_PID = angle_P + angle_I + angle_D;
-    angle_PID = map(angle_PID, -150, 150, 0, 150);
 
-    if (angle_PID < 20)
-    {
-      angle_PID = 20;
-    }
-    if (angle_PID > 160)
-    {
-      angle_PID = 160;
-    }
-
-    stepper.rotate(limit());
+    // stepper.rotate(target);double target_angle = angle_now + angle;
+    double target_angle = angle_now + angle_PID;
+    target_angle = target_angle > MAX ? MAX : target_angle;
+    target_angle = target_angle < MIN ? MIN : target_angle;
+    double rotation = target_angle - angle_now;
+    stepper.rotate(rotation);
+    angle_now = target_angle;
     distance_previous_error = distance_error;
-    printf("distance: %6.2f error: %6.2f angle: %6.2f angle_now: %6.2f", distance, distance_error, angle_PI, angle_now);
-    printf("kp: %f ki: %f kd: %f \n", kp, ki, kd);
+  }
+
+  if (millis() > tempsPrint + 300)
+  {
+    tempsPrint = millis();
+    printf("distance: %6.2f error: %6.2f angle: %6.2f angle_now: %6.2f ", distance, distance_error, angle_PID, angle_now);
+    printf("kp: %f ki: %f kd: %f \n", angle_P, angle_I, angle_D);
   }
 }
+
 float measureDistance()
 {
   return distanceSensor.measureDistanceCm();
@@ -98,12 +110,18 @@ float measureDistance()
 
 double limit(void)
 {
-  double target_angle = angle_now + angle_PI;
+  double target_angle = angle_now + angle_P;
   target_angle = target_angle > MAX ? MAX : target_angle;
   target_angle = target_angle < MIN ? MIN : target_angle;
   double rotation = target_angle - angle_now;
   angle_now = target_angle;
   return rotation;
+}
+
+float position(float distance)
+{
+  target_now = set_point - distance;
+  return target;
 }
 
 void Kpot(void)
