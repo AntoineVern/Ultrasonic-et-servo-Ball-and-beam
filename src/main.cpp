@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "A4988.h"
-
+//hi
 // using a 200-step motor (most common)
 #define MOTOR_STEPS 200
 // configure the pins connected///////////////////////Inputs/outputs///////////////////////
@@ -108,7 +108,7 @@ void Kpot(void)
   uint16_t ADC_Value2 = analogRead(A3);
   uint16_t ADC_Value3 = analogRead(A4);
 
-  kp = 10.0 * ADC_Value1/ 4096.0;
-  ki = 1.0 * ADC_Value2/ 4096.0;
-  kd = 10000.0 * ADC_Value3/ 4096.0;
+  // kp = 10.0 * ADC_Value1/ 4096.0;
+  // ki = 1.0 * ADC_Value2/ 4096.0;
+  // kd = 10000.0 * ADC_Value3/ 4096.0;
 }
