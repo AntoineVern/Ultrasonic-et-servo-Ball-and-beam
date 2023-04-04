@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "A4988.h"
+#include <CircularBuffer.h>
+#include <HCSR04.h>
 
+CircularBuffer<double, 6> buffer;
 // using a 200-step motor (most common)
 #define MOTOR_STEPS 200
 // configure the pins connected///////////////////////Inputs/outputs///////////////////////
@@ -10,22 +13,21 @@
 #define MS1_PIN 13
 #define MS2_PIN 12
 #define MS3_PIN 27
-#define set_point 20
 
-#define MAX 45
-#define MIN -45
+#define MAX 35
+#define MIN -35
 
 #define motorInterfaceType 1
 A4988 stepper(MOTOR_STEPS, DIR_PIN, STEP_PIN, MS1_PIN, MS2_PIN, MS3_PIN);
 double angle_P, angle_I, angle_D, angle_PI, angle_PID, angle_now;
 
-#include <HCSR04.h>
 UltraSonicDistanceSensor distanceSensor(A0, A1); // Initialize sensor that uses digital pins 13 and 12.
 
-double distance = 0.0;
+double distanceLive = 0.0;
+float distancePrecedente;
 double temps, tempsPrint; // Variables for time control
 double distance_previous_error, distance_error;
-int period = 50; // Refresh rate period of the loop is 50ms
+int period = 10; // Refresh rate period of the loop is 50ms
 
 ///////////////////PID constants///////////////////////
 #define KP_MAX 10
@@ -35,23 +37,19 @@ int period = 50; // Refresh rate period of the loop is 50ms
 float target;
 float target_now;
 
-double kp = 4;                 // Mine was 8
-double ki = 0.2;               // Mine was 0.2
-double kd = 2000;              // Mine was 3100
-double distance_setpoint = 25; // Should be the distance from sensor to the middle of the bar in mm
+double kp = 2;   // Mine was 8
+double ki = 0.2; // Mine was 0.2
+double kd = 100; // Mine was 3100
+double distance_setpoint = 25;
 ///////////////////////////////////////////////////////
 
-float current_angle = 0;
-
-double limit(void);
-float measureDistance();
+void measureDistance(void);
 void Kpot(void);
-float position(float distance);
 
 void setup()
 {
   Serial.begin(115200);
-  stepper.begin(60, 2); // vitesse est de 1.8°/s
+  stepper.begin(60, 1); // vitesse est de 1.8°/s
   temps = millis();
   tempsPrint = millis();
   angle_now = 0;
@@ -64,16 +62,17 @@ void loop()
   {
     temps = millis();
     Kpot();
-    distance = measureDistance();
+    measureDistance();
 
-    distance_error = distance_setpoint - distance;
+    distance_error = distance_setpoint - distanceLive;
 
     angle_P = kp * distance_error;
 
+    // Derivée
     float dist_diference = distance_error - distance_previous_error;
     angle_D = kd * ((distance_error - distance_previous_error) / period);
 
-    if (-5 < distance_error && distance_error < 8)
+    if (-2 < distance_error && distance_error < 2)
     {
       angle_I = angle_I + (ki * distance_error);
     }
@@ -81,7 +80,7 @@ void loop()
     {
       angle_I = 0;
     }
-    //angle_I = angle_I + (ki * distance_error);
+    // angle_I = angle_I + (ki * distance_error);
     angle_PI = angle_P + angle_I;
     angle_PID = angle_P + angle_I + angle_D;
 
@@ -98,14 +97,41 @@ void loop()
   if (millis() > tempsPrint + 300)
   {
     tempsPrint = millis();
-    printf("distance: %6.2f error: %6.2f angle: %6.2f angle_now: %6.2f ", distance, distance_error, angle_PID, angle_now);
+    printf("distance: %6.2f error: %6.2f angle_PID: %6.2f angle_now: %6.2f ", distanceLive, distance_error, angle_PID, angle_now);
     printf("kp: %f ki: %f kd: %f \n", angle_P, angle_I, angle_D);
   }
 }
 
-float measureDistance()
+void measureDistance(void)
 {
-  return distanceSensor.measureDistanceCm();
+
+  while (!buffer.isFull())
+  {
+    distanceLive = distanceSensor.measureDistanceCm();
+    buffer.push(distanceLive);
+  }
+
+  if (buffer.isFull())
+  {
+    // trouver la disntance en ce moment
+    distanceLive = 0.00;
+    for (int i = 0; i < buffer.size() - 1; i++)
+    {
+      distanceLive += buffer[i];
+    }
+    distanceLive = distanceLive / (float)buffer.size();
+
+    // trouver la distance precedente
+
+    distancePrecedente = 0.00;
+    for (int i = 1; i < buffer.size(); i++)
+    {
+      distancePrecedente += buffer[i];
+    }
+    distancePrecedente = distancePrecedente / (float)buffer.size();
+
+    buffer.shift(); // enleve la derniere valeur pour fifo
+  }
 }
 
 double limit(void)
@@ -116,12 +142,6 @@ double limit(void)
   double rotation = target_angle - angle_now;
   angle_now = target_angle;
   return rotation;
-}
-
-float position(float distance)
-{
-  target_now = set_point - distance;
-  return target;
 }
 
 void Kpot(void)
