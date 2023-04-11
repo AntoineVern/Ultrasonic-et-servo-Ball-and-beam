@@ -2,6 +2,7 @@
 #include "A4988.h"
 #include <CircularBuffer.h>
 #include <HCSR04.h>
+#include "Adafruit_VL53L0X.h"
 
 CircularBuffer<double, 6> buffer;
 // using a 200-step motor (most common)
@@ -22,6 +23,7 @@ A4988 stepper(MOTOR_STEPS, DIR_PIN, STEP_PIN, MS1_PIN, MS2_PIN, MS3_PIN);
 double angle_P, angle_I, angle_D, angle_PI, angle_PID, angle_now;
 
 UltraSonicDistanceSensor distanceSensor(A0, A1); // Initialize sensor that uses digital pins 13 and 12.
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 double distanceLive = 0.0;
 float distancePrecedente;
@@ -39,7 +41,7 @@ float target_now;
 
 double kp = 2;   // Mine was 8
 double ki = 0.2; // Mine was 0.2
-double kd = 100; // Mine was 3100
+double kd = 600; // Mine was 3100
 double distance_setpoint = 25;
 ///////////////////////////////////////////////////////
 
@@ -49,16 +51,23 @@ void Kpot(void);
 void setup()
 {
   Serial.begin(115200);
-  stepper.begin(30, 1); // vitesse est de 1.8°/s
+  stepper.begin(180, 2); // vitesse est de 1.8°/s
   temps = millis();
   tempsPrint = millis();
   angle_now = 0;
-  stepper.setSpeedProfile(stepper.LINEAR_SPEED, 5000, 5000);
+  stepper.setSpeedProfile(stepper.LINEAR_SPEED, 4000, 4000);
+  if (!lox.begin())
+  {
+    Serial.println(F("Failed to boot VL53L0X"));
+    while (1)
+      ;
+  }
+  lox.startRangeContinuous();
 }
 
 void loop()
 {
-  stepper.getAcceleration();
+
   if (millis() > temps + period)
   {
     temps = millis();
@@ -94,7 +103,7 @@ void loop()
     distance_previous_error = distance_error;
   }
 
-  if (millis() > tempsPrint + 300)
+  if (millis() > tempsPrint + 100)
   {
     tempsPrint = millis();
     printf("distance: %6.2f error: %6.2f angle_PID: %6.2f angle_now: %6.2f ", distanceLive, distance_error, angle_PID, angle_now);
@@ -107,7 +116,7 @@ void measureDistance(void)
 
   while (!buffer.isFull())
   {
-    distanceLive = distanceSensor.measureDistanceCm();
+    distanceLive = lox.readRange() * 10;
     buffer.push(distanceLive);
   }
 
