@@ -134,16 +134,6 @@ void measureDistance(void)
   }
 }
 
-double limit(void)
-{
-  double target_angle = angle_now + angle_P;
-  target_angle = target_angle > MAX ? MAX : target_angle;
-  target_angle = target_angle < MIN ? MIN : target_angle;
-  double rotation = target_angle - angle_now;
-  angle_now = target_angle;
-  return rotation;
-}
-
 void Kpot(void)
 {
   uint16_t ADC_Value1 = analogRead(A2);
