@@ -15,8 +15,8 @@ CircularBuffer<double, 6> buffer;
 #define MS2_PIN 12
 #define MS3_PIN 27
 
-#define MAX 35
-#define MIN -35
+#define MAX 45
+#define MIN -45
 
 #define motorInterfaceType 1
 A4988 stepper(MOTOR_STEPS, DIR_PIN, STEP_PIN, MS1_PIN, MS2_PIN, MS3_PIN);
@@ -32,16 +32,16 @@ double distance_previous_error, distance_error;
 int period = 10; // Refresh rate period of the loop is 50ms
 
 ///////////////////PID constants///////////////////////
-#define KP_MAX 10
-#define KI_MAX 2
+#define KP_MAX 2
+#define KI_MAX 1
 #define KD_MAX 2000
 
 float target;
 float target_now;
 
-double kp = 2;   // Mine was 8
+double kp = 1.5;   // Mine was 8
 double ki = 0.2; // Mine was 0.2
-double kd = 600; // Mine was 3100
+double kd = 300; // Mine was 3100
 double distance_setpoint = 25;
 ///////////////////////////////////////////////////////
 
@@ -82,19 +82,20 @@ void loop()
     float dist_diference = distance_error - distance_previous_error;
     angle_D = kd * ((distance_error - distance_previous_error) / period);
 
-    if (-2 < distance_error && distance_error < 2)
-    {
-      angle_I = angle_I + (ki * distance_error);
-    }
-    else
-    {
-      angle_I = 0;
-    }
-    // angle_I = angle_I + (ki * distance_error);
+    // if (-2 < distance_error && distance_error < 2)
+    // {
+    //   angle_I = angle_I + (ki * distance_error);
+    // }
+    // else
+    // {
+    //   angle_I = 0;
+    // }
+     angle_I = angle_I + (ki * distance_error);
     angle_PID = angle_P + angle_I + angle_D;
 
     // stepper.rotate(target);double target_angle = angle_now + angle;
-    double target_angle = angle_now + angle_PID;
+    //double target_angle = angle_now + angle_PID;
+    double target_angle = angle_PID;
     target_angle = target_angle > MAX ? MAX : target_angle;
     target_angle = target_angle < MIN ? MIN : target_angle;
     double rotation = target_angle - angle_now;
@@ -107,7 +108,7 @@ void loop()
   {
     tempsPrint = millis();
     printf("distance: %6.2f error: %6.2f angle_PID: %6.2f angle_now: %6.2f ", distanceLive, distance_error, angle_PID, angle_now);
-    printf("kp: %f ki: %f kd: %f \n", angle_P, angle_I, angle_D);
+    printf("kp: %f ki: %f kd: %f \n", kp, ki, kd / 1000.0);
   }
 }
 
@@ -116,7 +117,7 @@ void measureDistance(void)
 
   while (!buffer.isFull())
   {
-    distanceLive = lox.readRange() * 10;
+    distanceLive = lox.readRange() / 10.0;
     buffer.push(distanceLive);
   }
 
@@ -149,7 +150,7 @@ void Kpot(void)
   uint16_t ADC_Value2 = analogRead(A3);
   uint16_t ADC_Value3 = analogRead(A4);
 
-  // kp = KP_MAX * ADC_Value1/ 4096.0;
-  // ki = KI_MAX * ADC_Value2/ 4096.0;
-  // kd = KD_MAX * ADC_Value3/ 4096.0;
+  kp = KP_MAX * ADC_Value1/ 4096.0;
+  ki = KI_MAX * ADC_Value2/ 4096.0;
+  kd = KD_MAX * ADC_Value3/ 4096.0;
 }
