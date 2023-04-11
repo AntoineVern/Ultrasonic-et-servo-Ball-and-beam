@@ -49,15 +49,16 @@ void Kpot(void);
 void setup()
 {
   Serial.begin(115200);
-  stepper.begin(60, 1); // vitesse est de 1.8°/s
+  stepper.begin(30, 1); // vitesse est de 1.8°/s
   temps = millis();
   tempsPrint = millis();
   angle_now = 0;
+  stepper.setSpeedProfile(stepper.LINEAR_SPEED, 5000, 5000);
 }
 
 void loop()
 {
-
+  stepper.getAcceleration();
   if (millis() > temps + period)
   {
     temps = millis();
@@ -81,7 +82,6 @@ void loop()
       angle_I = 0;
     }
     // angle_I = angle_I + (ki * distance_error);
-    angle_PI = angle_P + angle_I;
     angle_PID = angle_P + angle_I + angle_D;
 
     // stepper.rotate(target);double target_angle = angle_now + angle;
